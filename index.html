@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Prime Traders</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#14213d">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#f5f6f8;--card:#fff;--ink:#16202e;--mute:#6a7686;--line:#e2e5ea;--brand:#14213d;--gold:#b8892b;--ok:#1f7a4d;--bad:#b3261e}
+@media (prefers-color-scheme:dark){:root{--bg:#0e131b;--card:#171e29;--ink:#e8ecf1;--mute:#93a0b1;--line:#2a3442;--brand:#e8c77a;--gold:#e8c77a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.45 system-ui,Segoe UI,Roboto,sans-serif;padding-bottom:84px}
+.wrap{max-width:760px;margin:0 auto;padding:14px}
+.top{display:flex;align-items:center;gap:10px;margin-bottom:12px}.top img{width:44px;height:44px;border-radius:8px}.top b{font-size:1.2rem}
+h2{font-size:1.05rem;margin:18px 0 8px}
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.c{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:9px 10px}.c span{display:block;color:var(--mute);font-size:.78rem}.c b{font-size:1.02rem}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin:8px 0}
+.row .t{display:flex;justify-content:space-between;gap:8px;font-weight:600}.row .m{color:var(--mute);font-size:.88rem;margin-top:2px}
+button,.btn{font:inherit;font-weight:600;background:var(--brand);color:#fff;border:0;border-radius:10px;padding:9px 16px;cursor:pointer}
+@media (prefers-color-scheme:dark){button,.btn{color:#14213d}}
+button.o{background:transparent;color:var(--brand);border:1px solid var(--line)}button.d{background:transparent;color:var(--bad);border:1px solid var(--line)}
+button.s{padding:4px 12px;font-size:.88rem;margin-right:6px;margin-top:8px}
+input,select{font:inherit;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px;width:100%;margin:4px 0 10px}
+label{font-size:.85rem;color:var(--mute)}
+table{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:.9rem}
+th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--line)}th:first-child,td:first-child{text-align:left}th{background:var(--bg);color:var(--mute);font-weight:600}
+.nav{position:fixed;left:0;right:0;bottom:0;display:flex;background:var(--card);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0)}
+.nav button{flex:1;background:none;color:var(--mute);border-radius:0;padding:15px 4px}.nav button.on{color:var(--brand);box-shadow:inset 0 3px 0 var(--gold)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:flex-end;justify-content:center;z-index:30}
+.modal>div{background:var(--card);width:100%;max-width:560px;border-radius:16px 16px 0 0;padding:16px;max-height:92vh;overflow:auto}
+.login{max-width:380px;margin:40px auto;padding:16px;text-align:center}.login img{width:150px}
+.msg{color:var(--mute);font-size:.9rem;margin:6px 0}.err{color:var(--bad)}
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<nav class="nav" id="nav" style="display:none"></nav>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import{getAuth,onAuthStateChanged,signInWithEmailAndPassword,createUserWithEmailAndPassword,sendEmailVerification,sendPasswordResetEmail,signOut}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import{getFirestore,collection,doc,getDoc,setDoc,addDoc,updateDoc,deleteDoc,onSnapshot,query,orderBy,serverTimestamp}from"https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+const OWNER="ridwanislam1033@gmail.com";
+const app=initializeApp({apiKey:"AIzaSyAUIMW1lOxwtCC-oGJziuQHq0KT1aV3kYE",authDomain:"prime-traders-55893.firebaseapp.com",projectId:"prime-traders-55893",storageBucket:"prime-traders-55893.firebasestorage.app",messagingSenderId:"1049356587998",appId:"1:1049356587998:web:80a98eee6c7c066959834f"}),auth=getAuth(app),db=getFirestore(app);
+if("serviceWorker"in navigator)navigator.serviceWorker.register("sw.js").catch(()=>{});
+const $=s=>document.querySelector(s),M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fmt=n=>"\u09f3 "+Number(n||0).toLocaleString("en-IN"),esc=s=>String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let user=null,role=null,E=[],R=[],tab="income",month=new Date().toISOString().slice(0,7),unsubs=[],msg="";
+const canWrite=()=>role==="owner"||role==="editor";
+const due=e=>Math.max(0,(+e.price||0)-(+e.paid||0));
+const sum=l=>l.reduce((a,e)=>({t:a.t+(+e.price||0),p:a.p+(+e.paid||0),d:a.d+due(e)}),{t:0,p:0,d:0});
+
+onAuthStateChanged(auth,async u=>{
+  unsubs.forEach(f=>f());unsubs=[];E=[];R=[];user=u;role=null;
+  if(!u){draw();return}
+  const mail=u.email.toLowerCase();
+  if(mail===OWNER)role="owner";
+  else if(!u.emailVerified)role="unverified";
+  else{try{const s=await getDoc(doc(db,"roles",mail));role=s.exists()?s.data().role:"none"}catch(e){role="none"}}
+  if(["owner","editor","viewer"].includes(role)){
+    unsubs.push(onSnapshot(query(collection(db,"entries"),orderBy("date","desc")),s=>{E=s.docs.map(d=>({id:d.id,...d.data()}));draw()},()=>{}));
+    if(role==="owner")unsubs.push(onSnapshot(collection(db,"roles"),s=>{R=s.docs.map(d=>({email:d.id,...d.data()}));draw()},()=>{}));
+  }
+  draw();
+});
+
+function draw(){
+  const a=$("#app"),n=$("#nav");
+  if(!user){n.style.display="none";a.innerHTML=`<div class="login"><img src="icon-512.png" alt="Prime Traders"><h2>Sign in</h2>
+  <input id="em" type="email" placeholder="Email" autocomplete="username"><input id="pw" type="password" placeholder="Password" autocomplete="current-password">
+  <p class="msg err" id="lm">${esc(msg)}</p><button id="in" style="width:100%">Log in</button>
+  <p class="msg">New here?</p><button class="o" id="up" style="width:100%">Create account</button>
+  <p><button class="o s" id="fg">Forgot password</button></p></div>`;
+    $("#in").onclick=()=>go(signInWithEmailAndPassword);
+    $("#up").onclick=async()=>{await go(async(x,e,p)=>{const c=await createUserWithEmailAndPassword(x,e,p);await sendEmailVerification(c.user);msg="Account created. We sent a verification link to your email. Verify it, then log in."})};
+    $("#fg").onclick=async()=>{const e=$("#em").value.trim();if(!e){setM("Type your email first.");return}try{await sendPasswordResetEmail(auth,e);setM("Password reset email sent.")}catch(x){setM("Could not send.")}};
+    return}
+  if(!["owner","editor","viewer"].includes(role)){n.style.display="none";
+    const t=role==="unverified"?`Please verify your email (${esc(user.email)}). Open the link we sent, then press Refresh.`:`Your account (${esc(user.email)}) has no access yet. Ask the owner to add this email.`;
+    a.innerHTML=`<div class="login"><img src="icon-512.png"><p class="msg">${t}</p><button id="rf">Refresh</button> <button class="o" id="so">Log out</button>
+    ${role==="unverified"?'<p><button class="o s" id="rs">Resend verification email</button></p>':""}</div>`;
+    $("#rf").onclick=async()=>{await user.reload();location.reload()};$("#so").onclick=()=>signOut(auth);
+    if($("#rs"))$("#rs").onclick=async()=>{await sendEmailVerification(user);alert("Sent.")};return}
+  n.style.display="flex";n.innerHTML=["income","expense","settings"].map(k=>`<button data-t="${k}" class="${tab===k?"on":""}">${k[0].toUpperCase()+k.slice(1)}</button>`).join("");
+  n.querySelectorAll("button").forEach(b=>b.onclick=()=>{tab=b.dataset.t;draw();scrollTo(0,0)});
+  a.innerHTML=`<div class="top"><img src="icon-192.png"><b>Prime Traders</b></div>`+(tab==="settings"?settings():ledger(tab));
+  bind();
+}
+function setM(t){const e=$("#lm");if(e){e.textContent=t;e.className="msg"}}
+async function go(fn){try{msg="";await fn(auth,$("#em").value.trim(),$("#pw").value);if(msg)setM(msg)}catch(e){msg="";setM(e.code==="auth/email-already-in-use"?"This email already has an account. Log in instead.":e.code==="auth/weak-password"?"Password must be at least 6 characters.":"Email or password is wrong.")}}
+
+function ledger(type){
+  const L=E.filter(e=>e.type===type),y=month.slice(0,4),ML=L.filter(e=>e.date?.startsWith(month)),YL=L.filter(e=>e.date?.startsWith(y));
+  const m=sum(ML),yr=sum(YL),cd=(s,l)=>`<div class="cards">${[["Total",s.t],["Paid",s.p],["Due",s.d]].map(([k,v],i)=>`<div class="c"><span>${l} ${k}</span><b class="${i==1?"ok":i==2&&v?"bad":""}">${fmt(v)}</b></div>`).join("")}</div>`;
+  const rows=M.map((nm,i)=>{const s=sum(L.filter(e=>e.date?.startsWith(y+"-"+String(i+1).padStart(2,"0"))));return s.t||s.p?`<tr><td>${nm}</td><td>${fmt(s.t)}</td><td>${fmt(s.p)}</td><td>${fmt(s.d)}</td></tr>`:""}).join("");
+  const P=type==="income"?"Buyer":"Seller";
+  return `<label>Month</label><input type="month" id="mo" value="${month}">
+  <h2>${type==="income"?"Income":"Expense"} \u2014 ${M[+month.slice(5)-1]} ${y}</h2>${cd(m,"Month")}
+  <h2>Year ${y}</h2>${cd(yr,"Year")}
+  <h2>Monthly breakdown</h2><table><tr><th>Month</th><th>Total</th><th>Paid</th><th>Due</th></tr>${rows||'<tr><td colspan=4 class="msg">No entries this year.</td></tr>'}</table>
+  <h2>Entries ${canWrite()?'<button class="s" id="add" style="float:right;margin:0">Add</button>':""}</h2>
+  ${ML.map(e=>`<div class="row"><div class="t"><span>${esc(e.party)} \u2014 ${esc(e.product)}</span><span>${fmt(e.price)}</span></div>
+  <div class="m">${esc(e.date)} \u2022 Qty ${esc(e.qty)} \u2022 ${P}: ${esc(e.party)}</div>
+  <div class="m">Paid <b class="ok">${fmt(e.paid)}</b> \u2022 Due <b class="${due(e)?"bad":""}">${fmt(due(e))}</b></div>
+  ${canWrite()?`<button class="s o" data-e="${e.id}">Edit</button><button class="s d" data-x="${e.id}">Delete</button>`:""}</div>`).join("")||'<p class="msg">No entries this month.</p>'}`;
+}
+function form(type,e){
+  const P=type==="income"?"Buyer":"Seller",o=document.createElement("div");o.className="modal";
+  o.innerHTML=`<div><h2>${e?"Edit":"Add"} ${type==="income"?"Income":"Expense"}</h2>
+  <label>${P}</label><input id="f1" value="${esc(e?.party)}"><label>Product</label><input id="f2" value="${esc(e?.product)}">
+  <label>Quantity</label><input id="f3" type="number" inputmode="decimal" value="${esc(e?.qty)}"><label>Price (total)</label><input id="f4" type="number" inputmode="decimal" value="${esc(e?.price)}">
+  <label>Date</label><input id="f5" type="date" value="${esc(e?.date||new Date().toISOString().slice(0,10))}"><label>Paid</label><input id="f6" type="number" inputmode="decimal" value="${esc(e?.paid)}">
+  <p class="msg">Due = Price \u2212 Paid (automatic)</p><p class="msg err" id="fe"></p>
+  <button id="sv">Save</button> <button class="o" id="cn">Cancel</button></div>`;
+  document.body.appendChild(o);$("#cn").onclick=()=>o.remove();
+  $("#sv").onclick=async()=>{
+    const d={type,party:$("#f1").value.trim(),product:$("#f2").value.trim(),qty:+$("#f3").value||0,price:+$("#f4").value||0,date:$("#f5").value,paid:+$("#f6").value||0,by:user.email,ts:serverTimestamp()};
+    if(!d.party||!d.product||!d.date||d.price<=0){$("#fe").textContent="Fill "+P+", product, date and a price.";return}
+    try{e?await updateDoc(doc(db,"entries",e.id),d):await addDoc(collection(db,"entries"),d);o.remove()}catch(x){$("#fe").textContent="Could not save. You may not have editor access."}};
+}
+function settings(){
+  let h=`<h2>Account</h2><div class="row"><div class="t"><span>${esc(user.email)}</span><span>${role}</span></div></div>
+  <h2>Backup</h2><p class="msg">Copies all entries so you can keep them in Notes or WhatsApp.</p><button class="o" id="bk">Backup entries</button>
+  <h2>Session</h2><button class="o" id="so">Log out</button>`;
+  if(role==="owner")h+=`<h2>Team</h2><p class="msg">Editors can add and change entries. Viewers can only see. The person must create an account and verify their email first.</p>
+  ${R.map(r=>`<div class="row"><div class="t"><span>${esc(r.email)}</span><span>${r.role}</span></div><button class="s o" data-r="${esc(r.email)}" data-v="${r.role==="editor"?"viewer":"editor"}">Make ${r.role==="editor"?"viewer":"editor"}</button><button class="s d" data-rx="${esc(r.email)}">Remove</button></div>`).join("")}
+  <label>Add person (email)</label><input id="te" type="email"><select id="tr"><option value="editor">Editor</option><option value="viewer">Viewer</option></select><button id="ta">Add</button>`;
+  return h;
+}
+function bind(){
+  const q=s=>document.querySelector(s);
+  if(q("#mo"))q("#mo").onchange=e=>{month=e.target.value||month;draw()};
+  if(q("#add"))q("#add").onclick=()=>form(tab);
+  document.querySelectorAll("[data-e]").forEach(b=>b.onclick=()=>form(tab,E.find(x=>x.id===b.dataset.e)));
+  document.querySelectorAll("[data-x]").forEach(b=>b.onclick=async()=>{if(confirm("Delete this entry?"))try{await deleteDoc(doc(db,"entries",b.dataset.x))}catch(e){alert("Not allowed.")}});
+  if(q("#so"))q("#so").onclick=()=>signOut(auth);
+  if(q("#bk"))q("#bk").onclick=async()=>{const t="Prime Traders backup "+new Date().toLocaleString()+"\n"+JSON.stringify(E.map(({ts,...r})=>r));try{if(navigator.share){await navigator.share({title:"Prime Traders backup",text:t});return}}catch(e){if(e.name==="AbortError")return}try{await navigator.clipboard.writeText(t);alert("Backup copied. Paste it in Notes or WhatsApp.")}catch(e){alert("Could not copy.")}};
+  document.querySelectorAll("[data-r]").forEach(b=>b.onclick=()=>setDoc(doc(db,"roles",b.dataset.r),{role:b.dataset.v}));
+  document.querySelectorAll("[data-rx]").forEach(b=>b.onclick=()=>{if(confirm("Remove access for "+b.dataset.rx+"?"))deleteDoc(doc(db,"roles",b.dataset.rx))});
+  if(q("#ta"))q("#ta").onclick=async()=>{const e=q("#te").value.trim().toLowerCase();if(!e.includes("@"))return;await setDoc(doc(db,"roles",e),{role:q("#tr").value});q("#te").value=""};
+}
+</script>
+</body>
+</html>
