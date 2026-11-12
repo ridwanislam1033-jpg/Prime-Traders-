@@ -104,7 +104,7 @@ function ledger(type){
   <h2>Monthly breakdown</h2><table><tr><th>Month</th><th>Total</th><th>Paid</th><th>Due</th></tr>${rows||'<tr><td colspan=4 class="msg">No entries this year.</td></tr>'}</table>
   <h2>Entries ${canWrite()?'<button class="s" id="add" style="float:right;margin:0">Add</button>':""}</h2>
   ${ML.map(e=>`<div class="row"><div class="t"><span>${esc(e.party)} \u2014 ${esc(e.product)}</span><span>${fmt(e.price)}</span></div>
-  <div class="m">${esc(e.date)} \u2022 Qty ${esc(e.qty)} \u2022 ${P}: ${esc(e.party)}</div>
+  <div class="m">${esc(e.date)} \u2022 Qty ${esc(e.qty)} ${esc(e.unit)} \u2022 ${P}: ${esc(e.party)}</div>
   <div class="m">Paid <b class="ok">${fmt(e.paid)}</b> \u2022 Due <b class="${due(e)?"bad":""}">${fmt(due(e))}</b></div>
   ${canWrite()?`<button class="s o" data-e="${e.id}">Edit</button><button class="s d" data-x="${e.id}">Delete</button>`:""}</div>`).join("")||'<p class="msg">No entries this month.</p>'}`;
 }
@@ -112,13 +112,13 @@ function form(type,e){
   const P=type==="income"?"Buyer":"Seller",o=document.createElement("div");o.className="modal";
   o.innerHTML=`<div><h2>${e?"Edit":"Add"} ${type==="income"?"Income":"Expense"}</h2>
   <label>${P}</label><input id="f1" value="${esc(e?.party)}"><label>Product</label><input id="f2" value="${esc(e?.product)}">
-  <label>Quantity</label><input id="f3" type="number" inputmode="decimal" value="${esc(e?.qty)}"><label>Price (total)</label><input id="f4" type="number" inputmode="decimal" value="${esc(e?.price)}">
+  <label>Quantity and unit</label><div style="display:flex;gap:8px"><input id="f3" type="number" inputmode="decimal" value="${esc(e?.qty)}" style="flex:2;min-width:0"><input id="f7" list="ul" placeholder="kg, ton, pcs..." value="${esc(e?.unit)}" style="flex:1;min-width:0"></div><datalist id="ul"><option value="kg"><option value="ton"><option value="pcs"><option value="bag"><option value="liter"><option value="box"><option value="dozen"><option value="meter"></datalist><label>Price (total)</label><input id="f4" type="number" inputmode="decimal" value="${esc(e?.price)}">
   <label>Date</label><input id="f5" type="date" value="${esc(e?.date||new Date().toISOString().slice(0,10))}"><label>Paid</label><input id="f6" type="number" inputmode="decimal" value="${esc(e?.paid)}">
   <p class="msg">Due = Price \u2212 Paid (automatic)</p><p class="msg err" id="fe"></p>
   <button id="sv">Save</button> <button class="o" id="cn">Cancel</button></div>`;
   document.body.appendChild(o);$("#cn").onclick=()=>o.remove();
   $("#sv").onclick=async()=>{
-    const d={type,party:$("#f1").value.trim(),product:$("#f2").value.trim(),qty:+$("#f3").value||0,price:+$("#f4").value||0,date:$("#f5").value,paid:+$("#f6").value||0,by:user.email,ts:serverTimestamp()};
+    const d={type,party:$("#f1").value.trim(),product:$("#f2").value.trim(),qty:+$("#f3").value||0,unit:$("#f7").value.trim(),price:+$("#f4").value||0,date:$("#f5").value,paid:+$("#f6").value||0,by:user.email,ts:serverTimestamp()};
     if(!d.party||!d.product||!d.date||d.price<=0){$("#fe").textContent="Fill "+P+", product, date and a price.";return}
     try{e?await updateDoc(doc(db,"entries",e.id),d):await addDoc(collection(db,"entries"),d);o.remove()}catch(x){$("#fe").textContent="Could not save. You may not have editor access."}};
 }
